@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module FSMlib where
+module RSOI.FSMlib where
 
 -- | Класс коннечного автомата
 
