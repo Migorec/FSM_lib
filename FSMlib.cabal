@@ -42,11 +42,10 @@ Build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 Cabal-version:       >=1.2
 
-
 Library
   -- Modules exported by the library.
-Exposed-modules: RSOI.FSMlib
-Extensions: MultiParamTypeClasses    
+ Exposed-modules: 	RSOI.FSMlib
+ Extensions: 		MultiParamTypeClasses    
   
   -- Packages needed in order to build this package.
   -- Build-depends:       
