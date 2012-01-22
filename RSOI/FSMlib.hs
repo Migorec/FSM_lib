@@ -49,9 +49,8 @@ runFSM :: (IConnection c) => c  -- ^ coonection to databse
                           -> String -- ^ request table name
                           -> String -- ^ timer table name
                           -> Int -- ^ period in seconds
-                          -> Int -- ^ number of threads
                           -> IO ()
-runFSM conn stName rtName ttName pTime nThr =
+runFSM conn stName rtName ttName pTime =
     do tables <- getTables conn
        when (not (stName `elem` tables)) $
             do run conn ("CREATE TABLE " ++ stName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
@@ -73,4 +72,13 @@ runFSM conn stName rtName ttName pTime nThr =
                                                       "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id)") []
                return ()
             
-            
+       loopFSM conn stName rtName ttName pTime     
+       
+loopFSM :: (IConnection c) => c -> String -> String -> String -> Int -> IO ()
+loopFSM conn stName rtName ttName pTime =
+    do timeouts <- quickQuery' conn ("SELECT id, fsm_id, msg FROM " ++ ttName ++ " WHERE time < datetime('now')") []
+       ins <- prepare conn ("INSERT INTO " ++ rtName ++ " (fsm_id, msg) VALUES (?,?)")
+       del <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
+       executeMany ins (map tail timeouts)
+       executeMany del (map (\t -> [head t]) timeouts)  
+       commit conn
