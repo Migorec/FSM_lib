@@ -47,7 +47,7 @@ Library
  Exposed-modules: 	RSOI.FSMlib
  Extensions: 		MultiParamTypeClasses    
   
- Build-depends:  	base     
+ Build-depends:  	base, HDBC     
   
   -- Modules not exported by this package.
   -- Other-modules:       

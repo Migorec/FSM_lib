@@ -2,6 +2,9 @@
 
 module RSOI.FSMlib where
 
+import Database.HDBC
+import Control.Monad (when)
+
 -- | Typeclass for finite state machine Класс коннечного автомата
 --
 -- Parameters: Параметры:
@@ -39,4 +42,35 @@ class (Eq s, Show s, Read s,
            -> d -- ^ request state состояние заявки
            -> a -- ^ answer from remote system (data of the message)
            -> IO d -- ^ new request state + side effects (such as sending message to another system) новое состояние заявки + побочные эффекты (отправка сообщений другим системам, к примеру)
-    
+
+-- | main function
+runFSM :: (IConnection c) => c  -- ^ coonection to databse 
+                          -> String -- ^ state table name
+                          -> String -- ^ request table name
+                          -> String -- ^ timer table name
+                          -> Int -- ^ period in seconds
+                          -> Int -- ^ number of threads
+                          -> IO ()
+runFSM conn stName rtName ttName pTime nThr =
+    do tables <- getTables conn
+       when (not (stName `elem` tables)) $
+            do run conn ("CREATE TABLE " ++ stName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
+                                                      "state VARCHAR (25) NOT NULL, " ++
+                                                      "data VARCHAR (1000) NOT NULL)") []
+               return () 
+       when (not (rtName `elem` tables)) $
+            do run conn ("CREATE TABLE " ++ rtName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
+                                                      "fsm_id INTEGER NOT NULL, " ++
+                                                      "msg VARCHAR (25) NOT NULL, " ++
+                                                      "data VARCHAR (1000), " ++
+                                                      "FOREIGN KEY  (fsm_id) REFERENCES " ++ stName ++ "(id)") []
+               return ()
+       when (not (ttName `elem` tables)) $
+            do run conn ("CREATE TABLE " ++ ttName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
+                                                      "fsm_id INTEGER NOT NULL, " ++
+                                                      "msg VARCHAR (25) NOT NULL, " ++
+                                                      "time INTEGER NOT NULL, " ++
+                                                      "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id)") []
+               return ()
+            
+            
