@@ -16,7 +16,11 @@ module RSOI.FSMlib where
 --
 -- * timers (t)
 
-class (Eq s, Eq m, Eq t) => FSM s d m a t where
+class (Eq s, Show s, Read s,
+       Eq m, Show m, Read m,
+       Eq t, Show t, Read t,
+       Show d, Read d,
+       Show a, Read a) => FSM s d m a t where
     -- | State-transition function. Функция перехода автомата. 
     state :: s -- ^ previous FSM state предыдущее состояние автомата
           -> m -- ^ message recieved полученное сообщение
