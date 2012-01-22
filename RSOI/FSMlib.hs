@@ -12,13 +12,16 @@ module RSOI.FSMlib where
 --
 -- * messages (m)
 --
+-- * answer (data of the message) (a)
+--
 -- * timers (t)
 
-class (Eq s, Eq m, Eq t) => FSM s d m t where
+class (Eq s, Eq m, Eq t) => FSM s d m a t where
     -- | State-transition function. Функция перехода автомата. 
     state :: s -- ^ previous FSM state предыдущее состояние автомата
           -> m -- ^ message recieved полученное сообщение
           -> d -- ^ previuos request state предыдущее состояние заявки
+          -> a -- ^ answer from remote system (data of the message)
           -> (s, d) -- ^ new FSM and rewuest state новое состояние автомата и заявки
     
     -- | Function defining timers which should be started when entering new state. Функция определяющая таймеры, которые необходимо запустить при переходе в новое состояние
@@ -30,5 +33,6 @@ class (Eq s, Eq m, Eq t) => FSM s d m t where
     action :: s -- ^ new FSM state новое состояние автомата
            -> m -- ^ message that changed state сообщение, по которому был выполнен переход
            -> d -- ^ request state состояние заявки
+           -> a -- ^ answer from remote system (data of the message)
            -> IO d -- ^ new request state + side effects (such as sending message to another system) новое состояние заявки + побочные эффекты (отправка сообщений другим системам, к примеру)
     
