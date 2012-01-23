@@ -76,6 +76,10 @@ runFSM conn stName rtName ttName pTime =
        
 loopFSM :: (IConnection c) => c -> String -> String -> String -> Int -> IO ()
 loopFSM conn stName rtName ttName pTime =
+    checkTimers conn rtName ttName
+       
+checkTimers ::(IConnection c) => c -> String -> String -> IO ()
+checkTimers conn rtName ttName =
     do timeouts <- quickQuery' conn ("SELECT id, fsm_id, msg FROM " ++ ttName ++ " WHERE time < datetime('now') ORDER BY time") []
        ins <- prepare conn ("INSERT INTO " ++ rtName ++ " (fsm_id, msg) VALUES (?,?)")
        del <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
