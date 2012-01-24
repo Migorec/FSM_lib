@@ -1,9 +1,10 @@
 ﻿{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module RSOI.FSMlib where
 
 import Database.HDBC
-import Control.Monad (when)
+import Control.Monad (when, liftM)
 
 -- | Typeclass for finite state machine Класс коннечного автомата
 --
@@ -16,14 +17,12 @@ import Control.Monad (when)
 -- * messages (m)
 --
 -- * answer (data of the message) (a)
---
--- * timers (t)
+
 
 class (Eq s, Show s, Read s,
        Eq m, Show m, Read m,
-       Eq t, Show t, Read t,
        Show d, Read d,
-       Show a, Read a) => FSM s d m a t where
+       Show a, Read a) => FSM s d m a  | s -> d, s -> m, s -> a where
     -- | State-transition function. Функция перехода автомата. 
     state :: s -- ^ previous FSM state предыдущее состояние автомата
           -> m -- ^ message recieved полученное сообщение
@@ -34,7 +33,7 @@ class (Eq s, Show s, Read s,
     -- | Function defining timers which should be started when entering new state. Функция определяющая таймеры, которые необходимо запустить при переходе в новое состояние
     -- Часть функции выхода
     timeout :: s -- ^ new FSM state новое состояние автомата
-            -> [(t,Int)] -- ^ list of pairs (timer,time) список пар (таймер, время)
+            -> [(m,Int)] -- ^ list of pairs (message,time) список пар (таймер, время)
             
     -- | Output function. Функция выхода автомата
     action :: s -- ^ new FSM state новое состояние автомата
@@ -44,12 +43,13 @@ class (Eq s, Show s, Read s,
            -> IO d -- ^ new request state + side effects (such as sending message to another system) новое состояние заявки + побочные эффекты (отправка сообщений другим системам, к примеру)
 
 -- | main function
-runFSM :: (IConnection c) => c  -- ^ coonection to databse 
+runFSM :: (IConnection c,
+           FSM s d m a )  => c  -- ^ coonection to databse 
                           -> String -- ^ state table name
                           -> String -- ^ request table name
                           -> String -- ^ timer table name
                           -> Int -- ^ period in seconds
-                          -> IO ()
+                          -> IO (s,d,m,a)
 runFSM conn stName rtName ttName pTime =
     do tables <- getTables conn
        when (not (stName `elem` tables)) $
@@ -74,9 +74,29 @@ runFSM conn stName rtName ttName pTime =
             
        loopFSM conn stName rtName ttName pTime     
        
-loopFSM :: (IConnection c) => c -> String -> String -> String -> Int -> IO ()
-loopFSM conn stName rtName ttName pTime =
+loopFSM :: (IConnection c,
+            FSM s d m a) => c -> String -> String -> String -> Int -> IO (s,d,m,a)
+loopFSM conn stName rtName ttName pTime = do
     checkTimers conn rtName ttName
+    [mid_s,fid_s,msg_s,mdat_s] <- head `liftM` quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
+    [fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
+    let st = read $ fromSql st_s
+        fdat = read $ fromSql fdat_s
+        msg = read $ fromSql msg_s
+        mdat = read $ fromSql mdat_s
+        (new_st, i_dat) = state st msg fdat mdat
+        timers = timeout new_st
+    new_dat <- action new_st msg i_dat mdat
+    
+    run conn ("DELETE FROM " ++ rtName ++ " WHERE id=?") [mid_s]
+    run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
+    commit conn
+    
+    if True
+        then loopFSM conn stName rtName ttName pTime
+        else return (st,fdat,msg,mdat)
+    
+       
        
 checkTimers ::(IConnection c) => c -> String -> String -> IO ()
 checkTimers conn rtName ttName =
