@@ -5,6 +5,7 @@ module RSOI.FSMlib where
 
 import Database.HDBC
 import Control.Monad (when, liftM)
+import Control.Concurrent (threadDelay)
 import Data.Maybe (fromJust) 
 
 -- | Typeclass for finite state machine Класс коннечного автомата
@@ -80,7 +81,7 @@ loopFSM :: (IConnection c,
 loopFSM conn stName rtName ttName pTime = do
     checkTimers conn rtName ttName
     res <- checkMessages conn stName rtName
-    
+    threadDelay $ pTime * 1000000
     if True
         then loopFSM conn stName rtName ttName pTime
         else return (fromJust res)
