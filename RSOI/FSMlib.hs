@@ -1,7 +1,8 @@
 ﻿{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
-module RSOI.FSMlib where
+module RSOI.FSMlib(FSM(..),
+                   runFSM) where
 
 import Database.HDBC
 import Control.Monad (when, liftM)
