@@ -5,6 +5,7 @@ module RSOI.FSMlib where
 
 import Database.HDBC
 import Control.Monad (when, liftM)
+import Data.Maybe (fromJust) 
 
 -- | Typeclass for finite state machine Класс коннечного автомата
 --
@@ -78,25 +79,37 @@ loopFSM :: (IConnection c,
             FSM s d m a) => c -> String -> String -> String -> Int -> IO (s,d,m,a)
 loopFSM conn stName rtName ttName pTime = do
     checkTimers conn rtName ttName
-    [mid_s,fid_s,msg_s,mdat_s] <- head `liftM` quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
-    [fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
-    let st = read $ fromSql st_s
-        fdat = read $ fromSql fdat_s
-        msg = read $ fromSql msg_s
-        mdat = read $ fromSql mdat_s
-        (new_st, i_dat) = state st msg fdat mdat
-        timers = timeout new_st
-    new_dat <- action new_st msg i_dat mdat
-    
-    run conn ("DELETE FROM " ++ rtName ++ " WHERE id=?") [mid_s]
-    run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
-    commit conn
+    res <- checkMessages conn stName rtName
     
     if True
         then loopFSM conn stName rtName ttName pTime
-        else return (st,fdat,msg,mdat)
+        else return (fromJust res)
     
-       
+    
+    
+checkMessages :: (IConnection c,
+                  FSM s d m a) => c -> String -> String -> IO (Maybe (s,d,m,a))
+checkMessages conn stName rtName = do
+    message <- head `liftM` quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
+    if message==[]
+       then return Nothing
+       else do let [mid_s,fid_s,msg_s,mdat_s] = message
+               [fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
+               let st = read $ fromSql st_s
+                   fdat = read $ fromSql fdat_s
+                   msg = read $ fromSql msg_s
+                   mdat = read $ fromSql mdat_s
+                   (new_st, i_dat) = state st msg fdat mdat
+                   timers = timeout new_st 
+               new_dat <- action new_st msg i_dat mdat
+    
+               run conn ("DELETE FROM " ++ rtName ++ " WHERE id=?") [mid_s]
+               run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
+               commit conn
+               if True
+                  then checkMessages conn stName rtName
+                  else return (Just (new_st,new_dat,msg,mdat))
+               
        
 checkTimers ::(IConnection c) => c -> String -> String -> IO ()
 checkTimers conn rtName ttName =
