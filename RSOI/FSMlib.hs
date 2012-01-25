@@ -24,14 +24,14 @@ import Data.Maybe (fromJust)
 
 class (Eq s, Show s, Read s,
        Eq m, Show m, Read m,
-       Show d, Read d,
+       Eq d, Show d, Read d,
        Show a, Read a) => FSM s d m a  | s -> d, s -> m, s -> a where
     -- | State-transition function. Функция перехода автомата. 
     state :: s -- ^ previous FSM state предыдущее состояние автомата
           -> m -- ^ message recieved полученное сообщение
           -> d -- ^ previuos request state предыдущее состояние заявки
           -> a -- ^ answer from remote system (data of the message)
-          -> (s, d) -- ^ new FSM and rewuest state новое состояние автомата и заявки
+          -> Maybe (s, d) -- ^ new FSM and rewuest state новое состояние автомата и заявки
     
     -- | Function defining timers which should be started when entering new state. Функция определяющая таймеры, которые необходимо запустить при переходе в новое состояние
     -- Часть функции выхода
@@ -101,16 +101,19 @@ checkMessages conn stName rtName = do
                    fdat = read $ fromSql fdat_s
                    msg = read $ fromSql msg_s
                    mdat = read $ fromSql mdat_s
-                   (new_st, i_dat) = state st msg fdat mdat
-                   timers = timeout new_st 
-               new_dat <- action new_st msg i_dat mdat
-    
+                   state_res = state st msg fdat mdat
+               res <- if state_res /= Nothing
+                         then do let Just (new_st, i_dat) = state_res
+                                     timers = timeout new_st 
+                                 new_dat <- action new_st msg i_dat mdat
+                                 run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
+                                 return (Just (new_st,new_dat,msg,mdat))
+                         else return Nothing 
                run conn ("DELETE FROM " ++ rtName ++ " WHERE id=?") [mid_s]
-               run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
                commit conn
                if True
                   then checkMessages conn stName rtName
-                  else return (Just (new_st,new_dat,msg,mdat))
+                  else return (res)
                
        
 checkTimers ::(IConnection c) => c -> String -> String -> IO ()
