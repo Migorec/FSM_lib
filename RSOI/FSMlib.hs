@@ -96,10 +96,10 @@ loopFSM conn stName rtName ttName pTime = do
 checkMessages :: (IConnection c,
                   FSM s d m a) => c -> String -> String -> String -> IO (Maybe (s,d,m,a))
 checkMessages conn stName rtName ttName = do
-    message <- head `liftM` quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
+    message <- quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
     if message==[]
        then return Nothing
-       else do let [mid_s,fid_s,msg_s,mdat_s] = message
+       else do let [mid_s,fid_s,msg_s,mdat_s] = head message
                [fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
                let st = read $ fromSql st_s
                    fdat = read $ fromSql fdat_s
