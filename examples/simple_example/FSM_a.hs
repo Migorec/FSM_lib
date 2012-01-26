@@ -64,3 +64,16 @@ instance FSM A_States A_Data A_Messages A_Answer where
                                  | otherwise = Just (Cancel,dat)
                                  
     state _ _ _ _ = Nothing
+    
+    
+    action Wait Start dat _ = return dat{retries_B = 1, retries_C = 1}
+    action Wait Timeout_B dat _ = do let n = retries_B dat
+                                     return dat{retries_B = n +1}
+    action Wait_B Timeout_B dat _ = do let n = retries_B dat
+                                       return dat{retries_B = n +1}
+    action Wait Timeout_C dat _ = do let n = retries_C dat
+                                     return dat{retries_C = n +1}
+    action Wait_C Timeout_C dat _ = do let n = retries_C dat
+                                       return dat{retries_C = n +1}
+                                       
+    action _ _ dat _ = return dat
