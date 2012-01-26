@@ -35,4 +35,9 @@ instance FSM A_States A_Data A_Messages A_Answer where
 
     init = (Init,A_Data{retries_B = 0, retries_C = 0, reply_B = Nothing, reply_C = Nothing})
     
- 
+    timeout Wait = [(Timeout_B, timeout_b), (Timeout_C, timeout_c)]
+    timeout Wait_B = [(Timeout_B, timeout_b)]
+    timeout Wait_C = [(Timeout_C, timeout_c)]
+    timeout _ = []
+    
+    
