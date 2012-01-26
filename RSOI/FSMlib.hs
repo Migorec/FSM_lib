@@ -4,6 +4,7 @@
 module RSOI.FSMlib(FSM(..),
                    runFSM) where
 
+import Prelude hiding (init)                    
 import Database.HDBC
 import Control.Monad (when, liftM)
 import Control.Concurrent (threadDelay)
@@ -100,10 +101,17 @@ checkMessages conn stName rtName ttName = do
     if message==[]
        then return Nothing
        else do let [mid_s,fid_s,msg_s,mdat_s] = head message
-               [fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
-               let st = read $ fromSql st_s
-                   fdat = read $ fromSql fdat_s
-                   msg = read $ fromSql msg_s
+               st1 <- quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
+               (fid_s,st,fdat) <- if st1 == []
+                                  then do let (i_s,i_d) = init
+                                          run conn ("INSERT INTO " ++ stName ++ " (id,state,data) VALUES (?,?,?)") [fid_s,toSql $ show i_s, toSql $ show i_d] 
+                                          return (fid_s,i_s,i_d)
+                                  else do let [fid_s,st_s,fdat_s] = head st1
+                                              st = read $ fromSql st_s
+                                              fdat = read $ fromSql fdat_s
+                                          return (fid_s,st,fdat)
+               --[fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
+               let msg = read $ fromSql msg_s
                    mdat = read $ fromSql mdat_s
                    state_res = state st msg fdat mdat
                res <- if state_res /= Nothing
