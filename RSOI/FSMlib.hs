@@ -45,7 +45,10 @@ class (Eq s, Show s, Read s,
            -> d -- ^ request state состояние заявки
            -> a -- ^ answer from remote system (data of the message)
            -> IO d -- ^ new request state + side effects (such as sending message to another system) новое состояние заявки + побочные эффекты (отправка сообщений другим системам, к примеру)
-
+    
+    -- | initial FSM state and reques state
+    init :: (s,d)
+           
 -- | main function
 runFSM :: (IConnection c,
            FSM s d m a )  => c  -- ^ coonection to databse 
