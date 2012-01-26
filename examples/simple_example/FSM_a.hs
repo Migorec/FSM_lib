@@ -1,5 +1,8 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module FSM_a where
 
+import RSOI.FSMlib
 
 data A_States = Init | 
                 Wait | 
@@ -21,3 +24,8 @@ data A_Data = A_Data { retries_B :: Int,
                        retries_C :: Int,
                        reply_B :: Maybe A_Answer,
                        reply_C :: Maybe A_Answer } deriving (Eq,Read,Show)
+                       
+                       
+instance FSM A_States A_Data A_Messages A_Answer where
+
+    init = (Init,A_Data{retries_B = 0, retries_C = 0, reply_B = Nothing, reply_C = Nothing})
