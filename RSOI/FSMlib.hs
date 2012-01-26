@@ -8,7 +8,8 @@ import Database.HDBC
 import Control.Monad (when, liftM)
 import Control.Concurrent (threadDelay)
 import Data.Maybe (fromJust) 
-
+import Data.Map (toList,fromList, difference)
+import qualified Data.Map as M (map)
 -- | Typeclass for finite state machine Класс коннечного автомата
 --
 -- Parameters: Параметры:
@@ -23,9 +24,9 @@ import Data.Maybe (fromJust)
 
 
 class (Eq s, Show s, Read s,
-       Eq m, Show m, Read m,
+       Eq m, Show m, Read m, Ord m,
        Eq d, Show d, Read d,
-       Show a, Read a) => FSM s d m a  | s -> d, s -> m, s -> a where
+       Show a, Read a) => FSM s d m a  | s -> d, s -> m, s -> a, m -> s where
     -- | State-transition function. Функция перехода автомата. 
     state :: s -- ^ previous FSM state предыдущее состояние автомата
           -> m -- ^ message recieved полученное сообщение
@@ -81,7 +82,7 @@ loopFSM :: (IConnection c,
             FSM s d m a) => c -> String -> String -> String -> Int -> IO (s,d,m,a)
 loopFSM conn stName rtName ttName pTime = do
     checkTimers conn rtName ttName
-    res <- checkMessages conn stName rtName
+    res <- checkMessages conn stName rtName ttName
     threadDelay $ pTime * 1000000
     if True
         then loopFSM conn stName rtName ttName pTime
@@ -90,8 +91,8 @@ loopFSM conn stName rtName ttName pTime = do
     
     
 checkMessages :: (IConnection c,
-                  FSM s d m a) => c -> String -> String -> IO (Maybe (s,d,m,a))
-checkMessages conn stName rtName = do
+                  FSM s d m a) => c -> String -> String -> String -> IO (Maybe (s,d,m,a))
+checkMessages conn stName rtName ttName = do
     message <- head `liftM` quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
     if message==[]
        then return Nothing
@@ -105,6 +106,7 @@ checkMessages conn stName rtName = do
                res <- if state_res /= Nothing
                          then do let Just (new_st, i_dat) = state_res
                                      timers = timeout new_st 
+                                 startTimers conn ttName fid_s timers
                                  new_dat <- action new_st msg i_dat mdat
                                  run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
                                  return (Just (new_st,new_dat,msg,mdat))
@@ -112,10 +114,26 @@ checkMessages conn stName rtName = do
                run conn ("DELETE FROM " ++ rtName ++ " WHERE id=?") [mid_s]
                commit conn
                if True
-                  then checkMessages conn stName rtName
+                  then checkMessages conn stName rtName ttName
                   else return (res)
                
-       
+startTimers :: (IConnection c,
+                FSM s d m a) => c -> String -> SqlValue -> [(m,Int)] -> IO ()
+startTimers conn ttName fid_s l = do
+    timeouts <- (fromList.unSql) `liftM` quickQuery' conn ("SELECT msg, id FROM " ++ ttName ++ "WHERE fsm_id=?") [fid_s]
+    let new_timeouts = fromList l
+        toStart = difference new_timeouts timeouts
+        toStop = difference timeouts new_timeouts
+    stop <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
+    executeMany stop (map (\x -> [snd x]) $ toList toStop)    
+    mapM_ (\(m,t) -> run conn ("INSERT INTO " ++ ttName ++ " (fsm_id,msg,time) VALUES (?,?," ++ (toSqlTime t) ++ ")") [fid_s,toSql $ show m]) $ toList toStart
+    commit conn
+    where unSql [] = []
+          unSql ([msg_s,id_s]:ls) = (read $ fromSql msg_s,id_s) : (unSql ls)
+          toSqlTime sec = "datetime('now','+" ++ show sec ++ " seconds')"
+          
+    
+               
 checkTimers ::(IConnection c) => c -> String -> String -> IO ()
 checkTimers conn rtName ttName =
     do timeouts <- quickQuery' conn ("SELECT id, fsm_id, msg FROM " ++ ttName ++ " WHERE time < datetime('now') ORDER BY time") []
