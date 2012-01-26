@@ -62,3 +62,5 @@ instance FSM A_States A_Data A_Messages A_Answer where
     
     state Wait_C Timeout_C dat _ | retries_C dat < retries_c = Just (Wait_C,dat)
                                  | otherwise = Just (Cancel,dat)
+                                 
+    state _ _ _ _ = Nothing
