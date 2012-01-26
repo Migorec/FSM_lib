@@ -110,7 +110,6 @@ checkMessages conn stName rtName ttName = do
                                               st = read $ fromSql st_s
                                               fdat = read $ fromSql fdat_s
                                           return (fid_s,st,fdat)
-               --[fid_s,st_s,fdat_s]<- head `liftM`  quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
                let msg = read $ fromSql msg_s
                    mdat = read $ fromSql mdat_s
                    state_res = state st msg fdat mdat
