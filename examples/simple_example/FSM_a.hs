@@ -3,6 +3,7 @@
 module FSM_a where
 
 import RSOI.FSMlib
+import Database.HDBC
 
 timeout_b = 10
 timeout_c = 20
@@ -77,3 +78,6 @@ instance FSM A_States A_Data A_Messages A_Answer where
                                        return dat{retries_C = n +1}
                                        
     action _ _ dat _ = return dat
+    
+run_A :: IConnection c => c -> String -> String -> String -> Int -> IO (A_States, A_Data, A_Messages, A_Answer )
+run_A = runFSM     
