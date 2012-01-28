@@ -27,3 +27,9 @@ reply_C fid= conn <- connectSqlite3 "test.db"
              run conn "INSERT INTO msg_table (fsm_id,msg,data) VALUES (?,?,?)" [toSql fid, toSql $ show Ack_C, toSql $ show A{answer = "C answer"}]
              commit conn
              disconnect conn
+             
+nack :: Int -> IO ()
+nack fid = conn <- connectSqlite3 "test.db"
+           run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Nack]
+           commit conn
+           disconnect conn
