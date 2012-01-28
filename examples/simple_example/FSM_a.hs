@@ -67,7 +67,8 @@ instance FSM A_States A_Data A_Messages A_Answer where
     state _ _ _ _ = Nothing
     
     
-    action Wait Start dat _ = return dat{retries_B = 1, retries_C = 1}
+    action Wait Start dat _ = do putStrLn "Start"
+                                 return dat{retries_B = 1, retries_C = 1}
     action Wait Timeout_B dat _ = do let n = retries_B dat
                                      return dat{retries_B = n +1}
     action Wait_B Timeout_B dat _ = do let n = retries_B dat
@@ -76,7 +77,17 @@ instance FSM A_States A_Data A_Messages A_Answer where
                                      return dat{retries_C = n +1}
     action Wait_C Timeout_C dat _ = do let n = retries_C dat
                                        return dat{retries_C = n +1}
-                                       
+    
+    action Cancel Timeout_B dat _ = do  putStrLn "Timeout B. Cancel."
+                                        return dat
+    action Cancel Timeout_C dat _ = do putStrLn "Timeout C. Cancel."
+                                       return dat
+    action Cancel Nack dat _ = do putStrLn "Nack. Cancel."
+                                  return dat
+    
+    action Done _ dat _ = do putStrLn "Done."
+                             return dat
+    
     action _ _ dat _ = return dat
     
 run_A :: IConnection c => c -> String -> String -> String -> Int -> IO (A_States, A_Data, A_Messages, A_Answer )
