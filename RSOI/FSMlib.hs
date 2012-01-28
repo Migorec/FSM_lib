@@ -70,14 +70,14 @@ runFSM conn stName rtName ttName pTime =
                                                       "fsm_id INTEGER NOT NULL, " ++
                                                       "msg VARCHAR (25) NOT NULL, " ++
                                                       "data VARCHAR (1000), " ++
-                                                      "FOREIGN KEY  (fsm_id) REFERENCES " ++ stName ++ "(id)") []
+                                                      "FOREIGN KEY  (fsm_id) REFERENCES " ++ stName ++ "(id))") []
                return ()
        when (not (ttName `elem` tables)) $
             do run conn ("CREATE TABLE " ++ ttName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
                                                       "fsm_id INTEGER NOT NULL, " ++
                                                       "msg VARCHAR (25) NOT NULL, " ++
                                                       "time INTEGER NOT NULL, " ++
-                                                      "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id)") []
+                                                      "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id))") []
                return ()
             
        loopFSM conn stName rtName ttName pTime     
