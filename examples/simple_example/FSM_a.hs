@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module FSM_a (run_A) where
+module FSM_a (run_A, A_Messages(..), A_Answer(..)) where
 
 import RSOI.FSMlib
 import Database.HDBC
