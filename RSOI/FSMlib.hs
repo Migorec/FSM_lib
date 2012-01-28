@@ -80,6 +80,7 @@ runFSM conn stName rtName ttName pTime =
                                                       "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id))") []
                return ()
             
+       commit conn
        loopFSM conn stName rtName ttName pTime     
        
 loopFSM :: (IConnection c,
