@@ -88,6 +88,7 @@ loopFSM :: (IConnection c,
 loopFSM conn stName rtName ttName pTime = do
     checkTimers conn rtName ttName
     res <- checkMessages conn stName rtName ttName
+    commit conn -- to unlock database
     threadDelay $ pTime * 1000000
     if True
         then loopFSM conn stName rtName ttName pTime
