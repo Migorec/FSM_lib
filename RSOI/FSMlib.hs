@@ -103,7 +103,7 @@ checkMessages conn stName rtName ttName = do
     if message==[]
        then return Nothing
        else do let [mid_s,fid_s,msg_s,mdat_s] = head message
-               st1 <- quickQuery' conn ("SELECT * FROM " ++ stName ++ "WHERE id=?") [fid_s]
+               st1 <- quickQuery' conn ("SELECT * FROM " ++ stName ++ " WHERE id=?") [fid_s]
                (fid_s,st,fdat) <- if st1 == []
                                   then do let (i_s,i_d) = init
                                           run conn ("INSERT INTO " ++ stName ++ " (id,state,data) VALUES (?,?,?)") [fid_s,toSql $ show i_s, toSql $ show i_d] 
@@ -121,7 +121,7 @@ checkMessages conn stName rtName ttName = do
                                      timers = timeout new_st 
                                  startTimers conn ttName fid_s timers
                                  new_dat <- action new_st msg i_dat mdat
-                                 run conn ("UPDATE" ++ stName ++ "SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
+                                 run conn ("UPDATE " ++ stName ++ " SET state=? data=? WHERE id = ?") [fid_s,toSql $ show new_st, toSql $ show new_dat]
                                  return (Just (new_st,new_dat,msg,mdat))
                          else return Nothing 
                run conn ("DELETE FROM " ++ rtName ++ " WHERE id=?") [mid_s]
@@ -133,7 +133,7 @@ checkMessages conn stName rtName ttName = do
 startTimers :: (IConnection c,
                 FSM s d m a) => c -> String -> SqlValue -> [(m,Int)] -> IO ()
 startTimers conn ttName fid_s l = do
-    timeouts <- (fromList.unSql) `liftM` quickQuery' conn ("SELECT msg, id FROM " ++ ttName ++ "WHERE fsm_id=?") [fid_s]
+    timeouts <- (fromList.unSql) `liftM` quickQuery' conn ("SELECT msg, id FROM " ++ ttName ++ " WHERE fsm_id=?") [fid_s]
     let new_timeouts = fromList l
         toStart = difference new_timeouts timeouts
         toStop = difference timeouts new_timeouts
