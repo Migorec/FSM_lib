@@ -3,6 +3,7 @@
 import FSM_a
 import Database.HDBC
 import Database.HDBC.Sqlite3
+import Control.Concurrent
 
 
 main :: IO ()
@@ -33,3 +34,11 @@ nack fid = do conn <- connectSqlite3 "test.db"
               run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Nack]
               commit conn
               disconnect conn
+
+test :: IO ()
+test = do thread <- forkIO main
+          threadDelay $ 1 * 1000000
+          start 1
+          reply_B 1
+          reply_C 1
+          
