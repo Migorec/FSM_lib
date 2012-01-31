@@ -5,8 +5,8 @@ module FSM_a (run_A, A_Messages(..), A_Answer(..)) where
 import RSOI.FSMlib
 import Database.HDBC
 
-timeout_b = 10
-timeout_c = 20
+timeout_b = 1
+timeout_c = 2
 retries_b = 8
 retries_c = 4
 

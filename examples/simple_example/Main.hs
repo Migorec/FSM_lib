@@ -39,6 +39,16 @@ test :: IO ()
 test = do thread <- forkIO main
           threadDelay $ 1 * 1000000
           start 1
+          start 2
+          start 3
+          start 4
           reply_B 1
           reply_C 1
-          
+          start 5
+          nack 2
+          reply_B 2
+          threadDelay $ 2 * 1000000
+          reply_C 3
+          reply_B 5
+          reply_C 5
+          threadDelay $ 15 * 1000000
