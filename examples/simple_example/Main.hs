@@ -4,6 +4,7 @@ import FSM_a
 import Database.HDBC
 import Database.HDBC.Sqlite3
 import Control.Concurrent
+import Control.Monad(liftM)
 import Directory
 import IO
 
@@ -36,7 +37,7 @@ nack fid = do conn <- connectSqlite3 "test.db"
               commit conn
               disconnect conn
 
-test :: IO ()
+test :: IO Bool
 test = do conn <- connectSqlite3 "test.db"
           thread <- forkIO ( run_A conn "fsm_table" "msg_table" "timer_table" 1 >> return () )
           threadDelay $ 1 * 1000000
@@ -55,5 +56,8 @@ test = do conn <- connectSqlite3 "test.db"
           reply_C 5
           threadDelay $ 20 * 1000000
           killThread thread
+          res <- map (read . fromSql . head ) `liftM` quickQuery' conn "SELECT state FROM fsm_table" []
           disconnect conn
           removeFile "test.db"
+          return (res == [Done,Cancel,Cancel,Cancel,Done])
+          
