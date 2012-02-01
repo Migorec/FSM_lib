@@ -4,13 +4,14 @@ import FSM_a
 import Database.HDBC
 import Database.HDBC.Sqlite3
 import Control.Concurrent
-
+import Directory
+import IO
 
 main :: IO ()
-main = do conn <- connectSqlite3 "test.db"
-          run_A conn "fsm_table" "msg_table" "timer_table" 1
-          disconnect conn
-
+main = do bracket (connectSqlite3 "test.db")
+                  (\conn -> putStrLn "qqq" >> disconnect conn)
+                  (\conn -> run_A conn "fsm_table" "msg_table" "timer_table" 1 >> return ())
+                 
 start :: Int -> IO ()
 start fid = do conn <- connectSqlite3 "test.db"
                run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Start]
@@ -36,7 +37,8 @@ nack fid = do conn <- connectSqlite3 "test.db"
               disconnect conn
 
 test :: IO ()
-test = do thread <- forkIO main
+test = do conn <- connectSqlite3 "test.db"
+          thread <- forkIO ( run_A conn "fsm_table" "msg_table" "timer_table" 1 >> return () )
           threadDelay $ 1 * 1000000
           start 1
           start 2
@@ -51,4 +53,7 @@ test = do thread <- forkIO main
           reply_C 3
           reply_B 5
           reply_C 5
-          threadDelay $ 15 * 1000000
+          threadDelay $ 20 * 1000000
+          killThread thread
+          disconnect conn
+          removeFile "test.db"
