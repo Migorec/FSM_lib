@@ -34,13 +34,17 @@ mainWithOptions opts = do
                   optOutput = outPath  } = opts
     prog <- parseFile inPath
     case prog of
-            ParseOk modl -> writeFile outPath $ prettyPrint $ head $ insts modl
-            ParseFailed _ _ -> putStrLn "Parse error!"
-    
+            ParseOk modl -> writeFile outPath $ prettyPrint $ inst modl
+            ParseFailed _ _ -> error "Parse error!"
+           
 
-insts :: Module -> [Decl]
-insts (Module _ _ _ _ _ _ decls) = filter isInstDecl decls
-    where isInstDecl (InstDecl _ _ (UnQual (Ident "FSM")) _ _)  = True
+inst :: Module -> Decl
+inst (Module _ _ _ _ _ _ decls) = case insts of
+                                    [inst] -> inst
+                                    [] -> error "There is no FSM instances in this module."
+                                    _ -> error "There should be only one FSM instance in the module."
+    where insts = filter isInstDecl decls
+          isInstDecl (InstDecl _ _ (UnQual (Ident "FSM")) _ _)  = True
           isInstDecl (InstDecl _ _ (Qual (ModuleName "RSOI.FSMlib") (Ident "FSM")) _ _)  = True
           isInstDecl _ = False
     
