@@ -34,13 +34,14 @@ mainWithOptions opts = do
                   optOutput = outPath  } = opts
     prog <- parseFile inPath
     case prog of
-            ParseOk modl -> writeFile outPath $ show $ insts modl
+            ParseOk modl -> writeFile outPath $ prettyPrint $ head $ insts modl
             ParseFailed _ _ -> putStrLn "Parse error!"
     
 
 insts :: Module -> [Decl]
 insts (Module _ _ _ _ _ _ decls) = filter isInstDecl decls
-    where isInstDecl (InstDecl _ _ _ _ _)  = True
+    where isInstDecl (InstDecl _ _ (UnQual (Ident "FSM")) _ _)  = True
+          isInstDecl (InstDecl _ _ (Qual (ModuleName "RSOI.FSMlib") (Ident "FSM")) _ _)  = True
           isInstDecl _ = False
     
 
