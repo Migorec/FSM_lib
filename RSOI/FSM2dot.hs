@@ -2,6 +2,7 @@
 
 import System.Environment
 import System.Console.GetOpt
+import Language.Haskell.Exts
 
 
 data Options = Options {
@@ -28,4 +29,9 @@ main = do args <- getArgs
           mainWithOptions opts
           
 mainWithOptions :: Options -> IO ()
-mainWithOptions opts = return ()
+mainWithOptions opts = do
+    let Options { optInput = inPath,
+                  optOutput = outPath  } = opts
+    prog <- parseFile inPath
+    writeFile outPath $ show prog
+    
