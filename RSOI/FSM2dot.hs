@@ -33,5 +33,15 @@ mainWithOptions opts = do
     let Options { optInput = inPath,
                   optOutput = outPath  } = opts
     prog <- parseFile inPath
-    writeFile outPath $ show prog
+    case prog of
+            ParseOk modl -> writeFile outPath $ show $ insts modl
+            ParseFailed _ _ -> putStrLn "Parse error!"
+    
+
+insts :: Module -> [Decl]
+insts (Module _ _ _ _ _ _ decls) = filter isInstDecl decls
+    where isInstDecl (InstDecl _ _ _ _ _)  = True
+          isInstDecl _ = False
+    
+
     
