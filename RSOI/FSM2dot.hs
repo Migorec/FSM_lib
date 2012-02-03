@@ -34,10 +34,17 @@ mainWithOptions opts = do
                   optOutput = outPath  } = opts
     prog <- parseFile inPath
     case prog of
-            ParseOk modl -> writeFile outPath $ prettyPrint $ inst modl
+            ParseOk modl -> writeFile outPath $ prettyPrint $ states $ inst modl
             ParseFailed _ _ -> error "Parse error!"
            
-
+states :: Decl -> InstDecl
+states (InstDecl _ _ _ _ idecls) = case filter isStateFunc idecls of
+                                    [a] -> a
+                                    _ -> error "That could not be!"
+    where isStateFunc (InsDecl (FunBind ((Match _ (Ident "state") _ _ _ _ ): _))) = True  
+          isStateFunc _ = False
+states _ = error "But how?! O_o"
+           
 inst :: Module -> Decl
 inst (Module _ _ _ _ _ _ decls) = case insts of
                                     [inst] -> inst
