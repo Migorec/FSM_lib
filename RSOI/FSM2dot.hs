@@ -1,4 +1,4 @@
-﻿module FSM2dot where
+﻿module Main where
 
 import System.Environment
 import System.Console.GetOpt
