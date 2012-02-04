@@ -5,7 +5,8 @@ import System.Console.GetOpt
 import Language.Haskell.Exts
 import Data.GraphViz.Attributes.Complete
 import Data.GraphViz.Types.Canonical
-import Data.Text.Lazy (pack)
+import Data.GraphViz.Types
+import Data.Text.Lazy (pack, unpack)
 
 
 data Options = Options {
@@ -37,9 +38,20 @@ mainWithOptions opts = do
                   optOutput = outPath  } = opts
     prog <- parseFile inPath
     case prog of
-            ParseOk modl -> writeFile outPath $ show $ edges $ states $ inst modl
+            ParseOk modl -> writeFile outPath $ unpack $ printDotGraph $ graph modl
             ParseFailed _ _ -> error "Parse error!"
 
+graph :: Module -> DotGraph String
+graph modl = DotGraph {strictGraph = False,
+                       directedGraph = True,
+                       graphID = Nothing,
+                       graphStatements = DotStmts {attrStmts = [],
+                                                   subGraphs = [],
+                                                   nodeStmts = [],
+                                                   edgeStmts = (edges.states.inst) modl
+                                                  }
+                      }
+            
 edges :: InstDecl ->  [DotEdge String]
 edges (InsDecl (FunBind matches)) = foldr (\el acc -> maybe acc (++acc) $ toEdge el ) [] matches
     where toEdge :: Match -> Maybe [DotEdge String]
