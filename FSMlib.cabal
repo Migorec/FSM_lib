@@ -22,5 +22,9 @@ Library
   -- Other-modules:       
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
-  -- Build-tools:         
+  -- Build-tools:    
+
+Executable fsm2dot
+ Main-is:			RSOI/FSM2dot.hs
+ Build-Depends:     base, haskell-src-exts, graphviz, text, easy-file
   
