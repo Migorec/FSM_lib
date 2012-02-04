@@ -3,6 +3,9 @@
 import System.Environment
 import System.Console.GetOpt
 import Language.Haskell.Exts
+import Data.GraphViz.Attributes.Complete
+import Data.GraphViz.Types.Canonical
+import Data.Text.Lazy (pack)
 
 
 data Options = Options {
@@ -37,13 +40,16 @@ mainWithOptions opts = do
             ParseOk modl -> writeFile outPath $ show $ edges $ states $ inst modl
             ParseFailed _ _ -> error "Parse error!"
 
-edges :: InstDecl -> [(String,String,String)]
+edges :: InstDecl ->  [DotEdge String]
 edges (InsDecl (FunBind matches)) = foldr (\el acc -> maybe acc (++acc) $ toEdge el ) [] matches
-    where toEdge :: Match -> Maybe [(String,String,String)]
+    where toEdge :: Match -> Maybe [DotEdge String]
           toEdge (Match _ _ (st_patt : msg_patt : _ ) _ rhs _) = do st_name <- name_from_patt st_patt
                                                                     msg_name <- name_from_patt msg_patt
                                                                     newst_name <- name_from_rhs rhs
-                                                                    return (map  (\x -> (st_name,msg_name,x)) newst_name)                                                                 
+                                                                    return (map  (\x -> DotEdge {fromNode = st_name,
+                                                                                                 toNode = x,
+                                                                                                 edgeAttributes = [Label (StrLabel (pack msg_name))]}) newst_name) 
+                                                                    
 edges _ = error "Unbelievable error!"
 
 name_from_patt :: Pat -> Maybe String

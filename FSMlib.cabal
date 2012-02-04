@@ -57,5 +57,5 @@ Library
 
 Executable fsm2dot
  Main-is:			RSOI/FSM2dot.hs
- Build-Depends:     base, haskell-src-exts
+ Build-Depends:     base, haskell-src-exts, graphviz, text
   
