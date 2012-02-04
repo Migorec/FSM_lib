@@ -34,9 +34,30 @@ mainWithOptions opts = do
                   optOutput = outPath  } = opts
     prog <- parseFile inPath
     case prog of
-            ParseOk modl -> writeFile outPath $ prettyPrint $ states $ inst modl
+            ParseOk modl -> writeFile outPath $ show $ edges $ states $ inst modl
             ParseFailed _ _ -> error "Parse error!"
-           
+
+edges :: InstDecl -> [(String,String,String)]
+edges (InsDecl (FunBind matches)) = foldr (\el acc -> maybe acc (++acc) $ toEdge el ) [] matches
+    where toEdge :: Match -> Maybe [(String,String,String)]
+          toEdge (Match _ _ (st_patt : msg_patt : _ ) _ rhs _) = do st_name <- name_from_patt st_patt
+                                                                    msg_name <- name_from_patt msg_patt
+                                                                    newst_name <- name_from_rhs rhs
+                                                                    return (map  (\x -> (st_name,msg_name,x)) newst_name)                                                                 
+edges _ = error "Unbelievable error!"
+
+name_from_patt :: Pat -> Maybe String
+name_from_patt (PApp (UnQual (Ident name)) _) = Just name
+name_from_patt (PApp (Qual (ModuleName "RSOI.FSMlib") (Ident name)) _) = Just name
+name_from_patt _ = Nothing
+
+name_from_rhs :: Rhs -> Maybe [String]
+name_from_rhs (UnGuardedRhs (App (Con (UnQual (Ident "Just"))) (Tuple [Con (UnQual (Ident name)),_]) )) = Just [name]
+name_from_rhs (GuardedRhss rhss) = mapM name_from_grhs rhss
+    where name_from_grhs (GuardedRhs _ _ (App (Con (UnQual (Ident "Just"))) (Tuple [Con (UnQual (Ident name)),_]) )) = Just name
+          name_from_grhs _ = Nothing
+name_from_rhs _ = Nothing
+            
 states :: Decl -> InstDecl
 states (InstDecl _ _ _ _ idecls) = case filter isStateFunc idecls of
                                     [a] -> a
