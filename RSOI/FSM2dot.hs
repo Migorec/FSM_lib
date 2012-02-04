@@ -7,6 +7,7 @@ import Data.GraphViz.Attributes.Complete
 import Data.GraphViz.Types.Canonical
 import Data.GraphViz.Types
 import Data.Text.Lazy (pack, unpack)
+import System.EasyFile
 
 
 data Options = Options {
@@ -36,9 +37,9 @@ mainWithOptions :: Options -> IO ()
 mainWithOptions opts = do
     let Options { optInput = inPath,
                   optOutput = outPath  } = opts
-    prog <- parseFile inPath
+    prog <- parseFile $ replaceExtension inPath ".hs"
     case prog of
-            ParseOk modl -> writeFile outPath $ unpack $ printDotGraph $ graph modl
+            ParseOk modl -> writeFile ( replaceExtension outPath ".dot" ) $ unpack $ printDotGraph $ graph modl
             ParseFailed _ _ -> error "Parse error!"
 
 graph :: Module -> DotGraph String
