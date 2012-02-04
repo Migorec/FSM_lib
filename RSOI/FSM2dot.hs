@@ -45,7 +45,7 @@ graph :: Module -> DotGraph String
 graph modl = DotGraph {strictGraph = False,
                        directedGraph = True,
                        graphID = Nothing,
-                       graphStatements = DotStmts {attrStmts = [],
+                       graphStatements = DotStmts {attrStmts = [GraphAttrs [RankSep [0.1],RankDir FromLeft]],
                                                    subGraphs = [],
                                                    nodeStmts = [],
                                                    edgeStmts = (edges.states.inst) modl
