@@ -100,10 +100,12 @@ checkMessages :: (IConnection c,
                   FSM s d m a) => c -> String -> String -> String -> IO (Maybe (s,d,m,a))
 checkMessages conn stName rtName ttName = do
     message <- quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
+    commit conn
     if message==[]
        then return Nothing
        else do let [mid_s,fid_s,msg_s,mdat_s] = head message
                st1 <- quickQuery' conn ("SELECT * FROM " ++ stName ++ " WHERE id=?") [fid_s]
+               commit conn
                (fid_s,st,fdat) <- if st1 == []
                                   then do let (i_s,i_d) = init
                                           run conn ("INSERT INTO " ++ stName ++ " (id,state,data) VALUES (?,?,?)") [fid_s,toSql $ show i_s, toSql $ show i_d] 
@@ -133,6 +135,7 @@ startTimers :: (IConnection c,
                 FSM s d m a) => c -> String -> SqlValue -> [(m,Int)] -> IO ()
 startTimers conn ttName fid_s l = do
     timeouts <- (fromList.unSql) `liftM` quickQuery' conn ("SELECT msg, id FROM " ++ ttName ++ " WHERE fsm_id=?") [fid_s]
+    commit conn
     let new_timeouts = fromList l
         toStart = difference new_timeouts timeouts
         toStop = difference timeouts new_timeouts
@@ -149,6 +152,7 @@ startTimers conn ttName fid_s l = do
 checkTimers ::(IConnection c) => c -> String -> String -> IO ()
 checkTimers conn rtName ttName =
     do timeouts <- quickQuery' conn ("SELECT id, fsm_id, msg FROM " ++ ttName ++ " WHERE time < datetime('now') ORDER BY time") []
+       commit conn
        ins <- prepare conn ("INSERT INTO " ++ rtName ++ " (fsm_id, msg) VALUES (?,?)")
        del <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
        executeMany ins (map tail timeouts)
