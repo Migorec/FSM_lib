@@ -1,4 +1,4 @@
-﻿{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
 module RSOI.FSMlib(FSM(..),
