@@ -4,14 +4,17 @@ import FSM_a
 import Database.HDBC
 import Database.HDBC.Sqlite3
 import Control.Concurrent
+import Control.Concurrent.RWLock
 import Control.Monad(liftM)
 import Directory
 import IO
 
+{-
 main :: IO ()
 main = do bracket (connectSqlite3 "test.db")
                   (\conn -> putStrLn "qqq" >> disconnect conn)
                   (\conn -> run_A conn "fsm_table" "msg_table" "timer_table" 1 >> return ())
+-}
                
 start :: IConnection c => c -> Int -> IO ()
 start conn fid = do run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Start]
@@ -32,31 +35,32 @@ nack conn fid = do run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [t
 test :: IO Bool
 test = bracket (do conn <- connectSqlite3 "test.db" 
                    conn' <- clone conn
-                   thread <- forkIO ( run_A conn' "fsm_table" "msg_table" "timer_table" 1 >> return () )
-                   return (conn,conn',thread)
+                   rwl <- newRWLockIO
+                   thread <- forkIO ( run_A conn' "fsm_table" "msg_table" "timer_table" 1 rwl >> return () )
+                   return (conn,conn',thread,rwl)
                )
-               (\(conn,conn',thread) -> do killThread thread
-                                           disconnect conn'
-                                           disconnect conn
-                                           removeFile "test.db"                                          
+               (\(conn,conn',thread,rwl) -> do killThread thread
+                                               disconnect conn'
+                                               disconnect conn
+                                               removeFile "test.db"                                          
                )
-               (\(conn,conn',thread) -> do threadDelay $ 1 * 1000000
-                                           start conn 1
-                                           start conn 2
-                                           start conn 3
-                                           start conn 4
-                                           reply_B conn 1
-                                           reply_C conn 1
-                                           start conn 5
-                                           nack conn 2
-                                           reply_B conn 2
-                                           threadDelay $ 2 * 1000000
-                                           reply_C conn 3
-                                           reply_B conn 5
-                                           reply_C conn 5
-                                           threadDelay $ 20 * 1000000
-                                           res <- map (read . fromSql . head ) `liftM` quickQuery' conn "SELECT state FROM fsm_table" []
-                                           return (res == [Done,Cancel,Cancel,Cancel,Done])
+               (\(conn,conn',thread,rwl) -> do threadDelay $ 1 * 1000000
+                                               withWriteLock rwl $ start conn 1
+                                               withWriteLock rwl $ start conn 2
+                                               withWriteLock rwl $ start conn 3
+                                               withWriteLock rwl $ start conn 4
+                                               withWriteLock rwl $ reply_B conn 1
+                                               withWriteLock rwl $ reply_C conn 1
+                                               withWriteLock rwl $ start conn 5
+                                               withWriteLock rwl $ nack conn 2
+                                               withWriteLock rwl $ reply_B conn 2
+                                               threadDelay $ 2 * 1000000
+                                               withWriteLock rwl $ reply_C conn 3
+                                               withWriteLock rwl $ reply_B conn 5
+                                               withWriteLock rwl $ reply_C conn 5
+                                               threadDelay $ 20 * 1000000
+                                               res <-  withReadLock rwl $ map (read . fromSql . head ) `liftM` quickQuery' conn "SELECT state FROM fsm_table" []
+                                               return (res == [Done,Cancel,Cancel,Cancel,Done])
                )
 
           
