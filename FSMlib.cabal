@@ -16,7 +16,7 @@ Cabal-version:       >=1.2
 Library
  Exposed-modules: 	RSOI.FSMlib
  Extensions: 		MultiParamTypeClasses, FunctionalDependencies    
- Build-depends:  	base, containers, HDBC     
+ Build-depends:  	base, containers, HDBC, rwlock     
   
   -- Modules not exported by this package.
   -- Other-modules:       

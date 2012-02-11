@@ -8,6 +8,7 @@ import Prelude hiding (init)
 import Database.HDBC
 import Control.Monad (unless, liftM)
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.RWLock
 import Data.Maybe (fromJust, isJust) 
 import Data.Map (toList,fromList, difference)
 import qualified Data.Map as M (map)
@@ -57,9 +58,15 @@ runFSM :: (IConnection c,
                           -> String -- ^ request table name
                           -> String -- ^ timer table name
                           -> Int -- ^ period in seconds
+                          -> RWLock -- ^ reader-writer lock
                           -> IO (s,d,m,a)
-runFSM conn stName rtName ttName pTime =
-    do tables <- getTables conn
+runFSM conn stName rtName ttName pTime rwl =
+    do withWriteLock rwl $ checkTables conn stName rtName ttName 
+       loopFSM conn stName rtName ttName pTime rwl    
+
+checkTables :: (IConnection c) => c -> String -> String -> String -> IO ()
+checkTables conn stName rtName ttName = do
+       tables <- getTables conn
        unless (stName `elem` tables) $
             do run conn ("CREATE TABLE " ++ stName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
                                                       "state VARCHAR (25) NOT NULL, " ++
@@ -79,19 +86,16 @@ runFSM conn stName rtName ttName pTime =
                                                       "time INTEGER NOT NULL, " ++
                                                       "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id))") []
                return ()
-            
        commit conn
-       loopFSM conn stName rtName ttName pTime     
        
 loopFSM :: (IConnection c,
-            FSM s d m a) => c -> String -> String -> String -> Int -> IO (s,d,m,a)
-loopFSM conn stName rtName ttName pTime = do
-    checkTimers conn rtName ttName
-    res <- checkMessages conn stName rtName ttName
-    commit conn -- to unlock database
+            FSM s d m a) => c -> String -> String -> String -> Int -> RWLock -> IO (s,d,m,a)
+loopFSM conn stName rtName ttName pTime rwl = do
+    withWriteLock rwl $ checkTimers conn rtName ttName
+    res <- withWriteLock rwl $ checkMessages conn stName rtName ttName
     threadDelay $ pTime * 1000000
     if True
-        then loopFSM conn stName rtName ttName pTime
+        then loopFSM conn stName rtName ttName pTime rwl
         else return (fromJust res)
     
     
@@ -105,7 +109,6 @@ checkMessages conn stName rtName ttName = do
        then return Nothing
        else do let [mid_s,fid_s,msg_s,mdat_s] = head message
                st1 <- quickQuery' conn ("SELECT * FROM " ++ stName ++ " WHERE id=?") [fid_s]
-               commit conn
                (fid_s,st,fdat) <- if st1 == []
                                   then do let (i_s,i_d) = init
                                           run conn ("INSERT INTO " ++ stName ++ " (id,state,data) VALUES (?,?,?)") [fid_s,toSql $ show i_s, toSql $ show i_d] 
@@ -135,14 +138,12 @@ startTimers :: (IConnection c,
                 FSM s d m a) => c -> String -> SqlValue -> [(m,Int)] -> IO ()
 startTimers conn ttName fid_s l = do
     timeouts <- (fromList.unSql) `liftM` quickQuery' conn ("SELECT msg, id FROM " ++ ttName ++ " WHERE fsm_id=?") [fid_s]
-    commit conn
     let new_timeouts = fromList l
         toStart = difference new_timeouts timeouts
         toStop = difference timeouts new_timeouts
     stop <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
     executeMany stop (map (\x -> [snd x]) $ toList toStop)    
     mapM_ (\(m,t) -> run conn ("INSERT INTO " ++ ttName ++ " (fsm_id,msg,time) VALUES (?,?," ++ toSqlTime t ++ ")") [fid_s,toSql $ show m]) $ toList toStart
-    commit conn
     where unSql [] = []
           unSql ([msg_s,id_s]:ls) = (read $ fromSql msg_s,id_s) : unSql ls
           toSqlTime sec = "datetime('now','+" ++ show sec ++ " seconds')"
@@ -152,7 +153,6 @@ startTimers conn ttName fid_s l = do
 checkTimers ::(IConnection c) => c -> String -> String -> IO ()
 checkTimers conn rtName ttName =
     do timeouts <- quickQuery' conn ("SELECT id, fsm_id, msg FROM " ++ ttName ++ " WHERE time < datetime('now') ORDER BY time") []
-       commit conn
        ins <- prepare conn ("INSERT INTO " ++ rtName ++ " (fsm_id, msg) VALUES (?,?)")
        del <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
        executeMany ins (map tail timeouts)
