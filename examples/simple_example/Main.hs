@@ -1,63 +1,66 @@
-﻿module Main where
+module Main where
 
 import FSM_a
 import Database.HDBC
 import Database.HDBC.Sqlite3
 import Control.Concurrent
+import Control.Concurrent.RWLock
 import Control.Monad(liftM)
 import Directory
 import IO
 
+{-
 main :: IO ()
 main = do bracket (connectSqlite3 "test.db")
                   (\conn -> putStrLn "qqq" >> disconnect conn)
                   (\conn -> run_A conn "fsm_table" "msg_table" "timer_table" 1 >> return ())
+-}
+               
+start :: IConnection c => c -> Int -> IO ()
+start conn fid = do run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Start]
+                    commit conn
+                
+reply_B :: IConnection c => c -> Int -> IO ()
+reply_B conn fid = do run conn "INSERT INTO msg_table (fsm_id,msg,data) VALUES (?,?,?)" [toSql fid, toSql $ show Ack_B, toSql $ show A{answer = "B answer"}]
+                      commit conn
+
+reply_C :: IConnection c => c -> Int -> IO ()                 
+reply_C conn fid = do run conn "INSERT INTO msg_table (fsm_id,msg,data) VALUES (?,?,?)" [toSql fid, toSql $ show Ack_C, toSql $ show A{answer = "C answer"}]
+                      commit conn
                  
-start :: Int -> IO ()
-start fid = do conn <- connectSqlite3 "test.db"
-               run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Start]
-               commit conn
-               disconnect conn
-          
-reply_B :: Int -> IO ()
-reply_B fid= do conn <- connectSqlite3 "test.db"
-                run conn "INSERT INTO msg_table (fsm_id,msg,data) VALUES (?,?,?)" [toSql fid, toSql $ show Ack_B, toSql $ show A{answer = "B answer"}]
-                commit conn
-                disconnect conn
-             
-reply_C :: Int -> IO ()
-reply_C fid = do conn <- connectSqlite3 "test.db"
-                 run conn "INSERT INTO msg_table (fsm_id,msg,data) VALUES (?,?,?)" [toSql fid, toSql $ show Ack_C, toSql $ show A{answer = "C answer"}]
-                 commit conn
-                 disconnect conn
-             
-nack :: Int -> IO ()
-nack fid = do conn <- connectSqlite3 "test.db"
-              run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Nack]
-              commit conn
-              disconnect conn
+nack :: IConnection c => c -> Int -> IO ()              
+nack conn fid = do run conn "INSERT INTO msg_table (fsm_id,msg) VALUES (?,?)" [toSql fid, toSql $ show Nack]
+                   commit conn
 
 test :: IO Bool
-test = do conn <- connectSqlite3 "test.db"
-          thread <- forkIO ( run_A conn "fsm_table" "msg_table" "timer_table" 1 >> return () )
-          threadDelay $ 1 * 1000000
-          start 1
-          start 2
-          start 3
-          start 4
-          reply_B 1
-          reply_C 1
-          start 5
-          nack 2
-          reply_B 2
-          threadDelay $ 2 * 1000000
-          reply_C 3
-          reply_B 5
-          reply_C 5
-          threadDelay $ 20 * 1000000
-          killThread thread
-          res <- map (read . fromSql . head ) `liftM` quickQuery' conn "SELECT state FROM fsm_table" []
-          disconnect conn
-          removeFile "test.db"
-          return (res == [Done,Cancel,Cancel,Cancel,Done])
+test = bracket (do conn <- connectSqlite3 "test.db" 
+                   conn' <- clone conn
+                   rwl <- newRWLockIO
+                   thread <- forkIO ( run_A conn' "fsm_table" "msg_table" "timer_table" 1 rwl >> return () )
+                   return (conn,conn',thread,rwl)
+               )
+               (\(conn,conn',thread,rwl) -> do killThread thread
+                                               disconnect conn'
+                                               disconnect conn
+                                               removeFile "test.db"                                          
+               )
+               (\(conn,conn',thread,rwl) -> do threadDelay $ 1 * 1000000
+                                               withWriteLock rwl $ start conn 1
+                                               withWriteLock rwl $ start conn 2
+                                               withWriteLock rwl $ start conn 3
+                                               withWriteLock rwl $ start conn 4
+                                               withWriteLock rwl $ reply_B conn 1
+                                               withWriteLock rwl $ reply_C conn 1
+                                               withWriteLock rwl $ start conn 5
+                                               withWriteLock rwl $ nack conn 2
+                                               withWriteLock rwl $ reply_B conn 2
+                                               threadDelay $ 2 * 1000000
+                                               withWriteLock rwl $ reply_C conn 3
+                                               withWriteLock rwl $ reply_B conn 5
+                                               withWriteLock rwl $ reply_C conn 5
+                                               threadDelay $ 20 * 1000000
+                                               res <-  withReadLock rwl $ map (read . fromSql . head ) `liftM` quickQuery' conn "SELECT state FROM fsm_table" []
+                                               return (res == [Done,Cancel,Cancel,Cancel,Done])
+               )
+
           

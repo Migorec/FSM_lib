@@ -4,6 +4,7 @@ module FSM_a (run_A, A_Messages(..), A_Answer(..), A_States(..)) where
 
 import RSOI.FSMlib
 import Database.HDBC
+import Control.Concurrent.RWLock
 
 timeout_b = 1
 timeout_c = 2
@@ -90,5 +91,5 @@ instance FSM A_States A_Data A_Messages A_Answer where
     
     action _ _ dat _ = return dat
     
-run_A :: IConnection c => c -> String -> String -> String -> Int -> IO (A_States, A_Data, A_Messages, A_Answer )
+run_A :: IConnection c => c -> String -> String -> String -> Int -> RWLock -> IO (A_States, A_Data, A_Messages, A_Answer )
 run_A = runFSM     

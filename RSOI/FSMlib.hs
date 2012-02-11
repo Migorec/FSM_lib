@@ -1,4 +1,4 @@
-﻿{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
 module RSOI.FSMlib(FSM(..),
@@ -6,9 +6,10 @@ module RSOI.FSMlib(FSM(..),
 
 import Prelude hiding (init)                    
 import Database.HDBC
-import Control.Monad (when, liftM)
+import Control.Monad (unless, liftM)
 import Control.Concurrent (threadDelay)
-import Data.Maybe (fromJust) 
+import Control.Concurrent.RWLock
+import Data.Maybe (fromJust, isJust) 
 import Data.Map (toList,fromList, difference)
 import qualified Data.Map as M (map)
 -- | Typeclass for finite state machine Класс коннечного автомата
@@ -57,41 +58,44 @@ runFSM :: (IConnection c,
                           -> String -- ^ request table name
                           -> String -- ^ timer table name
                           -> Int -- ^ period in seconds
+                          -> RWLock -- ^ reader-writer lock
                           -> IO (s,d,m,a)
-runFSM conn stName rtName ttName pTime =
-    do tables <- getTables conn
-       when (not (stName `elem` tables)) $
+runFSM conn stName rtName ttName pTime rwl =
+    do withWriteLock rwl $ checkTables conn stName rtName ttName 
+       loopFSM conn stName rtName ttName pTime rwl    
+
+checkTables :: (IConnection c) => c -> String -> String -> String -> IO ()
+checkTables conn stName rtName ttName = do
+       tables <- getTables conn
+       unless (stName `elem` tables) $
             do run conn ("CREATE TABLE " ++ stName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
                                                       "state VARCHAR (25) NOT NULL, " ++
                                                       "data VARCHAR (1000) NOT NULL)") []
                return () 
-       when (not (rtName `elem` tables)) $
+       unless (rtName `elem` tables) $
             do run conn ("CREATE TABLE " ++ rtName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
                                                       "fsm_id INTEGER NOT NULL, " ++
                                                       "msg VARCHAR (25) NOT NULL, " ++
                                                       "data VARCHAR (1000), " ++
                                                       "FOREIGN KEY  (fsm_id) REFERENCES " ++ stName ++ "(id))") []
                return ()
-       when (not (ttName `elem` tables)) $
+       unless (ttName `elem` tables) $
             do run conn ("CREATE TABLE " ++ ttName ++ "(id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " ++
                                                       "fsm_id INTEGER NOT NULL, " ++
                                                       "msg VARCHAR (25) NOT NULL, " ++
                                                       "time INTEGER NOT NULL, " ++
                                                       "FOREIGN KEY (fsm_id) REFERENCES " ++ stName ++ "(id))") []
                return ()
-            
        commit conn
-       loopFSM conn stName rtName ttName pTime     
        
 loopFSM :: (IConnection c,
-            FSM s d m a) => c -> String -> String -> String -> Int -> IO (s,d,m,a)
-loopFSM conn stName rtName ttName pTime = do
-    checkTimers conn rtName ttName
-    res <- checkMessages conn stName rtName ttName
-    commit conn -- to unlock database
+            FSM s d m a) => c -> String -> String -> String -> Int -> RWLock -> IO (s,d,m,a)
+loopFSM conn stName rtName ttName pTime rwl = do
+    withWriteLock rwl $ checkTimers conn rtName ttName
+    res <- withWriteLock rwl $ checkMessages conn stName rtName ttName
     threadDelay $ pTime * 1000000
     if True
-        then loopFSM conn stName rtName ttName pTime
+        then loopFSM conn stName rtName ttName pTime rwl
         else return (fromJust res)
     
     
@@ -100,6 +104,7 @@ checkMessages :: (IConnection c,
                   FSM s d m a) => c -> String -> String -> String -> IO (Maybe (s,d,m,a))
 checkMessages conn stName rtName ttName = do
     message <- quickQuery' conn ("SELECT * FROM " ++ rtName ++ " ORDER BY id LIMIT 1") []
+    commit conn
     if message==[]
        then return Nothing
        else do let [mid_s,fid_s,msg_s,mdat_s] = head message
@@ -115,7 +120,7 @@ checkMessages conn stName rtName ttName = do
                let msg = read $ fromSql msg_s
                    mdat = read $ fromSql mdat_s
                    state_res = state st msg fdat mdat
-               res <- if state_res /= Nothing
+               res <- if isJust state_res 
                          then do let Just (new_st, i_dat) = state_res
                                      timers = timeout new_st 
                                  startTimers conn ttName fid_s timers
@@ -127,7 +132,7 @@ checkMessages conn stName rtName ttName = do
                commit conn
                if True
                   then checkMessages conn stName rtName ttName
-                  else return (res)
+                  else return res
                
 startTimers :: (IConnection c,
                 FSM s d m a) => c -> String -> SqlValue -> [(m,Int)] -> IO ()
@@ -138,10 +143,9 @@ startTimers conn ttName fid_s l = do
         toStop = difference timeouts new_timeouts
     stop <- prepare conn ("DELETE FROM " ++ ttName ++ " WHERE id=?")
     executeMany stop (map (\x -> [snd x]) $ toList toStop)    
-    mapM_ (\(m,t) -> run conn ("INSERT INTO " ++ ttName ++ " (fsm_id,msg,time) VALUES (?,?," ++ (toSqlTime t) ++ ")") [fid_s,toSql $ show m]) $ toList toStart
-    commit conn
+    mapM_ (\(m,t) -> run conn ("INSERT INTO " ++ ttName ++ " (fsm_id,msg,time) VALUES (?,?," ++ toSqlTime t ++ ")") [fid_s,toSql $ show m]) $ toList toStart
     where unSql [] = []
-          unSql ([msg_s,id_s]:ls) = (read $ fromSql msg_s,id_s) : (unSql ls)
+          unSql ([msg_s,id_s]:ls) = (read $ fromSql msg_s,id_s) : unSql ls
           toSqlTime sec = "datetime('now','+" ++ show sec ++ " seconds')"
           
     

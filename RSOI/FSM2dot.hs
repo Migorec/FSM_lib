@@ -1,4 +1,4 @@
-﻿module Main where
+module Main where
 
 import System.Environment
 import System.Console.GetOpt
@@ -25,11 +25,11 @@ writeOutput arg opt = return opt {optOutput = arg}
 main :: IO ()
 main = do args <- getArgs
           opts <- case getOpt Permute options args of
-                         (act,[path],[])  -> do opts <- foldl (>>=) (return Options {optOutput=path,optInput = path}) act
-                                                return opts  
+                         (act,[path],[])  -> foldl (>>=) (return Options {optOutput=path,optInput = path}) act
+                                               
                          (act,path:ps,[]) -> do putStrLn "Можно скомпилировать только один файл. остальные файлы проигнорированы"
-                                                opts <- foldl (>>=) (return Options {optOutput=path,optInput=path}) act
-                                                return opts
+                                                foldl (>>=) (return Options {optOutput=path,optInput=path}) act
+                                                
                          (_,_,msgs)      ->  error $ concat msgs
           mainWithOptions opts
           
@@ -56,32 +56,32 @@ graph modl = DotGraph {strictGraph = False,
 edges :: InstDecl ->  [DotEdge String]
 edges (InsDecl (FunBind matches)) = foldr (\el acc -> maybe acc (++acc) $ toEdge el ) [] matches
     where toEdge :: Match -> Maybe [DotEdge String]
-          toEdge (Match _ _ (st_patt : msg_patt : _ ) _ rhs _) = do st_name <- name_from_patt st_patt
-                                                                    msg_name <- name_from_patt msg_patt
-                                                                    newst_name <- name_from_rhs rhs
+          toEdge (Match _ _ (st_patt : msg_patt : _ ) _ rhs _) = do st_name <- nameFromPatt st_patt
+                                                                    msg_name <- nameFromPatt msg_patt
+                                                                    newst_name <- nameFromRhs rhs
                                                                     return (map  (\x -> DotEdge {fromNode = st_name,
                                                                                                  toNode = x,
                                                                                                  edgeAttributes = [Label (StrLabel (pack msg_name))]}) newst_name) 
                                                                     
 edges _ = error "Unbelievable error!"
 
-name_from_patt :: Pat -> Maybe String
-name_from_patt (PApp (UnQual (Ident name)) _) = Just name
-name_from_patt (PApp (Qual (ModuleName "RSOI.FSMlib") (Ident name)) _) = Just name
-name_from_patt _ = Nothing
+nameFromPatt :: Pat -> Maybe String
+nameFromPatt (PApp (UnQual (Ident name)) _) = Just name
+nameFromPatt (PApp (Qual (ModuleName "RSOI.FSMlib") (Ident name)) _) = Just name
+nameFromPatt _ = Nothing
 
-name_from_rhs :: Rhs -> Maybe [String]
-name_from_rhs (UnGuardedRhs (App (Con (UnQual (Ident "Just"))) (Tuple [Con (UnQual (Ident name)),_]) )) = Just [name]
-name_from_rhs (GuardedRhss rhss) = mapM name_from_grhs rhss
+nameFromRhs :: Rhs -> Maybe [String]
+nameFromRhs (UnGuardedRhs (App (Con (UnQual (Ident "Just"))) (Tuple [Con (UnQual (Ident name)),_]) )) = Just [name]
+nameFromRhs (GuardedRhss rhss) = mapM name_from_grhs rhss
     where name_from_grhs (GuardedRhs _ _ (App (Con (UnQual (Ident "Just"))) (Tuple [Con (UnQual (Ident name)),_]) )) = Just name
           name_from_grhs _ = Nothing
-name_from_rhs _ = Nothing
+nameFromRhs _ = Nothing
             
 states :: Decl -> InstDecl
 states (InstDecl _ _ _ _ idecls) = case filter isStateFunc idecls of
                                     [a] -> a
                                     _ -> error "That could not be!"
-    where isStateFunc (InsDecl (FunBind ((Match _ (Ident "state") _ _ _ _ ): _))) = True  
+    where isStateFunc (InsDecl (FunBind (Match _ (Ident "state") _ _ _ _ : _))) = True  
           isStateFunc _ = False
 states _ = error "But how?! O_o"
            
